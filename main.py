@@ -5,18 +5,9 @@ import os
 
 app = FastAPI()
 
-# Force absolute execution path matching to eliminate relative location bugs on Render
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-
-# Common HTTP header strategy mimicking verified mobile operating systems
-SPOOFED_HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Sec-Fetch-Mode': 'navigate'
-}
 
 @app.get("/search")
 def search_and_stream(q: str):
@@ -25,11 +16,11 @@ def search_and_stream(q: str):
         'quiet': True,
         'noplaylist': True,
         'skip_download': True,
-        'http_headers': SPOOFED_HEADERS,
+        # FORCE TLS/HTTP CLIENT IMPERSONATION (Bypasses Datacenter 403 blocks)
+        'impersonate': 'chrome', 
         'extractor_args': {
             'youtube': {
-                # Drops 'web' protocol entirely, which causes 403 blocks on cloud hosts
-                'player_client': ['ios', 'android'],
+                'player_client': ['android', 'ios'],
                 'skip': ['dash', 'hls']
             }
         }
@@ -66,12 +57,12 @@ def download_song(q: str):
         'format': 'bestaudio/best',
         'quiet': True,
         'noplaylist': True,
-        # Native safe template configuration to protect FFmpeg extraction workflows
         'outtmpl': os.path.join(DOWNLOAD_DIR, '%(id)s.%(ext)s'),
-        'http_headers': SPOOFED_HEADERS,
+        # FORCE TLS/HTTP CLIENT IMPERSONATION
+        'impersonate': 'chrome',
         'extractor_args': {
             'youtube': {
-                'player_client': ['ios', 'android'],
+                'player_client': ['android', 'ios'],
                 'skip': ['dash', 'hls']
             }
         },
@@ -97,11 +88,9 @@ def download_song(q: str):
             if not video_id:
                 raise HTTPException(status_code=500, detail="Could not capture video ID properties")
             
-            # Clean absolute matching structure
             final_path = os.path.join(DOWNLOAD_DIR, f"{video_id}.mp3")
             
             if os.path.exists(final_path):
-                # Clean characters that cause mobile file systems to discard filenames
                 safe_title = "".join([c for c in video_title if c.isalpha() or c.isdigit() or c in ' -_']).strip()
                 return FileResponse(
                     final_path, 
